@@ -1,12 +1,13 @@
 <?php
 
 namespace App\Http\Controllers;
-
+use Illuminate\Support\Arr;
 use App\Models\Project;
 use App\Models\Phase;
 use Illuminate\Http\Response;
 use App\Models\Role;
 use App\Models\Teams;
+use App\Models\Task;
 use Illuminate\Http\Request;
 use App\Http\Requests\ProjectStoreRequest;
 use Illuminate\Support\Facades\DB;
@@ -65,7 +66,7 @@ class ProjectController extends Controller
     public function findByName(Request $request){
 
         $userId = auth()->user()->currentAccessToken()->tokenable['id'];
-
+        // dd($request);
         $fileds = $request->validate([
             
             'project_name' => 'required'
@@ -74,8 +75,9 @@ class ProjectController extends Controller
         
         $project = Project::where('name', 'LIKE', "%{$fileds['project_name']}%")->where('user_id', '=', $userId)->get()->all();
 
-        $userRoles = Role::where('user_id', $userId)->pluck('project_id')->toArray();
-        $assignedProjects = Project::whereIn('id', $userRoles)->where('name', 'LIKE', "%{$fileds['project_name']}%")->where('user_id', '<>', $userId)->get()->all();
+        $userRoles = Role::where('user_id', $userId)->pluck('team_id')->toArray();
+        $userTeams = Teams::where('id', $userRoles)->pluck('project_id')->toArray();
+        $assignedProjects = Project::whereIn('id', $userTeams)->orderBy('created_at', 'DESC')->get();
 
         $response = [
             "projects" => $project,
@@ -111,18 +113,38 @@ class ProjectController extends Controller
 
         $fileds = $request->validate([
             'project_id' => 'required',
+
         ]);
 
 
         $project = Project::where('id', $fileds['project_id'])->first();
         $teams = Teams::where('project_id', $fileds['project_id'])->get()->toArray();
         $phases = Phase::where('project_id', $fileds['project_id'])->get()->toArray();
+        $phaseidBringer = Phase::where('project_id', $fileds['project_id'])->pluck('id');
         
-        $response = [
-            "project" => $project,
-            "phases" => $phases,
-            "teams"=> $teams,
+                                                                                                     
+        foreach ($phaseidBringer as $x) {
+            $tasks[]= Task::where('phase_id', $x)->get();
+            
+           
+        };
 
+//Method to flatten an array
+        $new = [];
+while ($item = array_shift($tasks)) {
+   array_push($new, ...$item);
+}
+      
+   
+          
+        
+        
+
+        $response = [
+            "project"=>$project,
+            "phases"=> $phases,
+            "teams"=> $teams,   
+            "new"=>$new,  
         ];
         return $response;
     }
@@ -130,7 +152,6 @@ class ProjectController extends Controller
     public function update(Request $request)
     {
 
-        
         
 
         $fileds = $request->validate([
@@ -155,26 +176,48 @@ class ProjectController extends Controller
         // return $project;
     }
 
-    public function destroy(Request $request)
-    {
+    public function delete(Request $request){
+
         $userId = auth()->user()->currentAccessToken()->tokenable['id'];
         $fileds = $request->validate([
             'project_id' => 'required',
+            'deleteDate' => 'required'
         ]);
 
         $project = Project::findOrFail($fileds['project_id']);
-        if($project->user_id != auth()->user()->currentAccessToken()->tokenable['id']){
-            return response([
-                "message" => "you donot have permission"
-            ]);
-        }
+            if($project->user_id != auth()->user()->currentAccessToken()->tokenable['id']){
+                return response([
+                    "message" => "you donot have permission"
+                ]);
+             }
 
-        $project->delete();
 
-        return response([
-            "message" => "project Deleted"
-        ], 200);
+        // Project::update('update projects set deleted_at = ? where id = ?',[$DeleteProject,$project_id]);
+       Project::where('id', $fileds['project_id'])->update(array('deleted_at' => $fileds[ 'deleteDate']));
+    
+    
     }
+
+    // public function destroy(Request $request)
+    // {
+    //     $userId = auth()->user()->currentAccessToken()->tokenable['id'];
+    //     $fileds = $request->validate([
+    //         'project_id' => 'required',
+    //     ]);
+
+    //     $project = Project::findOrFail($fileds['project_id']);
+    //     if($project->user_id != auth()->user()->currentAccessToken()->tokenable['id']){
+    //         return response([
+    //             "message" => "you donot have permission"
+    //         ]);
+    //     }
+
+    //     $project->();
+
+    //     return response([
+    //         "message" => "project Deleted"
+    //     ], 200);
+    // }
 
 
 }
