@@ -13,8 +13,34 @@ class TaskController extends Controller
     {
         return Task::all();
     }
+    public function findPTasksByPhaseId(Request $request){
 
-    
+        $fileds = $request->validate([
+            'phase_id' => 'required'
+        ]);
+
+        $fileds['phase_id'] = $fileds['phase_id'] + 0;
+        $phases = Task::where('phase_id', $fileds['phase_id'])->get()->all();
+
+        return response($phases);
+    }
+    public function changeStatus(Request $request){
+
+        $userId = auth()->user()->currentAccessToken()->tokenable['id'];
+
+
+        $fileds = $request->validate([
+            'task_id' => 'required',
+            'status' => 'required'
+        ]);
+        $fileds['task_id'] = $fileds['task_id'] + 0;
+
+        $task = Task::find($fileds['task_id']);
+        // dd($task['id']);
+        $task->update(array('status' => $fileds['status']));
+        return $task;
+
+    }
 
     public function store(TaskStoreRequest $request)
     {
@@ -28,18 +54,45 @@ class TaskController extends Controller
         
     }
 
-    public function update(Request $request, Task $task)
+    public function update(Request $request)
     {
-        $task = Task::find($id);
-        $task->update($request->all());
+        $request = $request->validate([
+
+            'name' => '',
+            'id' => 'required',
+            'description' => '',
+            'due_date'=>'',
+            'status' => ''
+
+        ]);
+        $task = Task::find($request['id']);
+        $task->update($request);
 
         return $task;
     }
 
-    public function destroy($id)
+    public function delete(Request $request)
     {
+        $userId = auth()->user()->currentAccessToken()->tokenable['id'];
 
-        $task = Task::findOrFail($id);
-        $task->delete(); 
+        $request = $request->validate([
+            'task_id' => 'required',
+        ]);
+
+        $task = Task::find($request['task_id']);
+        if($task){
+            
+            $task->delete();
+
+            return response([
+                "message" => "task Deleted"
+            ], 200);
+        }
+        else{
+            return response([
+                "message" => "task is not here"
+            ], 200);
+            
+        }
     }
 }
